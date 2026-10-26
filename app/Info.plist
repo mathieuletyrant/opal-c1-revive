@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key><string>com.mathieuletyrant.opalmini</string>
+	<key>CFBundleName</key><string>OpalMini</string>
+	<key>CFBundleDisplayName</key><string>OpalMini</string>
+	<key>CFBundleExecutable</key><string>OpalMini</string>
+	<key>CFBundleIconFile</key><string>AppIcon</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>CFBundleShortVersionString</key><string>1.0.0</string>
+	<key>CFBundleVersion</key><string>BUILD</string>
+	<key>LSMinimumSystemVersion</key><string>27.0</string>
+	<key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
+	<key>LSUIElement</key><true/>
+	<key>NSCameraUsageDescription</key><string>OpalMini shows a live preview of the Opal C1 while its menu is open.</string>
+	<key>NSHumanReadableCopyright</key><string>© 2026 Mathieu Le Tyrant.</string>
+</dict>
+</plist>

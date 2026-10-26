@@ -16,23 +16,23 @@ let kIOCFPlugInInterfaceID = CFUUIDGetConstantUUIDWithBytes(nil, 0xC2,0x44,0xE8,
 let kIOUSBDeviceInterfaceID = CFUUIDGetConstantUUIDWithBytes(nil, 0x5c,0x81,0x87,0xd0,0x9e,0xf3,0x11,0xD4,0x8b,0x45,0x00,0x0a,0x27,0x05,0x28,0x61)
 
 enum Kind { case slider, toggle, aeMode, powerline }
-struct Spec { let name: String; let unit: UInt16; let sel: UInt8; let size: Int; let kind: Kind; var autoOf: String? = nil; var signed = false; var advanced = false }
+struct Spec { let name: String; let unit: UInt16; let sel: UInt8; let size: Int; let kind: Kind; var autoOf: String? = nil; var signed = false; var advanced = false; var symbol = "slider.horizontal.3" }
 
 let SPECS: [Spec] = [
-    Spec(name: "Brightness", unit: PU, sel: 0x02, size: 2, kind: .slider, signed: true),
-    Spec(name: "Contrast", unit: PU, sel: 0x03, size: 2, kind: .slider),
-    Spec(name: "Saturation", unit: PU, sel: 0x07, size: 2, kind: .slider),
-    Spec(name: "Sharpness", unit: PU, sel: 0x08, size: 2, kind: .slider),
-    Spec(name: "Anti-flicker", unit: PU, sel: 0x05, size: 1, kind: .powerline),  // 50 Hz in Europe kills LED/neon banding
-    Spec(name: "Autofocus", unit: CT, sel: 0x08, size: 1, kind: .toggle),
-    Spec(name: "Focus", unit: CT, sel: 0x06, size: 2, kind: .slider, autoOf: "Autofocus", advanced: true),
-    Spec(name: "Auto exposure", unit: CT, sel: 0x02, size: 1, kind: .aeMode, advanced: true),
-    Spec(name: "Exposure", unit: CT, sel: 0x04, size: 4, kind: .slider, autoOf: "Auto exposure", advanced: true),
-    Spec(name: "Gain", unit: PU, sel: 0x04, size: 2, kind: .slider, autoOf: "Auto exposure", advanced: true),
-    Spec(name: "Auto white balance", unit: PU, sel: 0x0B, size: 1, kind: .toggle, advanced: true),
-    Spec(name: "White balance", unit: PU, sel: 0x0A, size: 2, kind: .slider, autoOf: "Auto white balance", advanced: true),
-    Spec(name: "Hue", unit: PU, sel: 0x06, size: 2, kind: .slider, signed: true, advanced: true),
-    Spec(name: "Backlight comp.", unit: PU, sel: 0x01, size: 2, kind: .slider, advanced: true),
+    Spec(name: "Brightness", unit: PU, sel: 0x02, size: 2, kind: .slider, signed: true, symbol: "sun.max"),
+    Spec(name: "Contrast", unit: PU, sel: 0x03, size: 2, kind: .slider, symbol: "circle.lefthalf.filled"),
+    Spec(name: "Saturation", unit: PU, sel: 0x07, size: 2, kind: .slider, symbol: "drop"),
+    Spec(name: "Sharpness", unit: PU, sel: 0x08, size: 2, kind: .slider, symbol: "triangle"),
+    Spec(name: "Anti-flicker", unit: PU, sel: 0x05, size: 1, kind: .powerline, symbol: "lightbulb"),  // 50 Hz in Europe kills LED/neon banding
+    Spec(name: "Autofocus", unit: CT, sel: 0x08, size: 1, kind: .toggle, symbol: "scope"),
+    Spec(name: "Focus", unit: CT, sel: 0x06, size: 2, kind: .slider, autoOf: "Autofocus", advanced: true, symbol: "camera.metering.center.weighted"),
+    Spec(name: "Auto exposure", unit: CT, sel: 0x02, size: 1, kind: .aeMode, advanced: true, symbol: "camera.aperture"),
+    Spec(name: "Exposure", unit: CT, sel: 0x04, size: 4, kind: .slider, autoOf: "Auto exposure", advanced: true, symbol: "timer"),
+    Spec(name: "Gain", unit: PU, sel: 0x04, size: 2, kind: .slider, autoOf: "Auto exposure", advanced: true, symbol: "plusminus"),
+    Spec(name: "Auto white balance", unit: PU, sel: 0x0B, size: 1, kind: .toggle, advanced: true, symbol: "thermometer.sun"),
+    Spec(name: "White balance", unit: PU, sel: 0x0A, size: 2, kind: .slider, autoOf: "Auto white balance", advanced: true, symbol: "thermometer.medium"),
+    Spec(name: "Hue", unit: PU, sel: 0x06, size: 2, kind: .slider, signed: true, advanced: true, symbol: "paintpalette"),
+    Spec(name: "Backlight comp.", unit: PU, sel: 0x01, size: 2, kind: .slider, advanced: true, symbol: "person.and.background.dotted"),
 ]
 
 // MARK: - UVC over IOKit
@@ -88,17 +88,17 @@ final class UVC {
 
 struct Control: Identifiable { let spec: Spec; var min = 0, max = 1, def = 0, value = 0; var id: String { spec.name } }
 
-@MainActor final class Model: ObservableObject {
-    @Published var controls: [Control] = []
-    @Published var connected = false
-    @Published var firmware = "?"
+@MainActor @Observable final class Model {
+    var controls: [Control] = []
+    var connected = false
+    var firmware = "?"
     let bootloader = (try? String(contentsOf: FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/OpalMini/bootloader.txt"), encoding: .utf8))?
         .trimmingCharacters(in: .whitespacesAndNewlines) ?? "?"
-    private var uvc: UVC?
-    private let logger = USBLogger()
+    @ObservationIgnored private var uvc: UVC?
+    @ObservationIgnored private let logger = USBLogger()
     // User choices survive replugs (the camera forgets them on power loss). Default: 50 Hz anti-flicker.
-    private var saved: [String: Int] {
+    @ObservationIgnored private var saved: [String: Int] {
         get { UserDefaults.standard.dictionary(forKey: "saved") as? [String: Int] ?? ["Anti-flicker": 1] }
         set { UserDefaults.standard.set(newValue, forKey: "saved") }
     }
@@ -211,25 +211,56 @@ func selftest() -> Never {
 
 struct ControlRow: View {
     let c: Control
-    @ObservedObject var model: Model
+    let model: Model
     var body: some View {
         switch c.spec.kind {
         case .toggle:
-            Toggle(c.id, isOn: Binding(get: { c.value != 0 }, set: { model.set(c.id, $0 ? 1 : 0) }))
+            switchRow(Binding(get: { c.value != 0 }, set: { model.set(c.id, $0 ? 1 : 0) }))
         case .aeMode:  // UVC bitmap: 1 manual, 2 auto, 4 shutter prio, 8 aperture prio
-            Toggle(c.id, isOn: Binding(get: { c.value != 1 }, set: { model.set(c.id, $0 ? (c.def == 1 ? 8 : c.def) : 1) }))
+            switchRow(Binding(get: { c.value != 1 }, set: { model.set(c.id, $0 ? (c.def == 1 ? 8 : c.def) : 1) }))
         case .powerline:
-            Picker(c.id, selection: Binding(get: { c.value }, set: { model.set(c.id, $0) })) {
-                Text("Off").tag(0); Text("50 Hz").tag(1); Text("60 Hz").tag(2)
-            }.pickerStyle(.segmented)
+            HStack {
+                label
+                Spacer()
+                Picker("", selection: Binding(get: { c.value }, set: { model.set(c.id, $0) })) {
+                    Text("Off").tag(0); Text("50 Hz").tag(1); Text("60 Hz").tag(2)
+                }.pickerStyle(.segmented).labelsHidden().fixedSize()
+            }
         case .slider:
-            VStack(alignment: .leading, spacing: 2) {
-                HStack { Text(c.id); Spacer(); Text("\(c.value)").monospacedDigit().foregroundStyle(.secondary) }
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    label
+                    Spacer()
+                    Text(c.value, format: .number).monospacedDigit().foregroundStyle(.secondary)
+                        .contentTransition(.numericText(value: Double(c.value)))
+                }
                 Slider(value: Binding(get: { Double(c.value) }, set: { model.set(c.id, Int($0)) }),
                        in: Double(c.min)...Double(max(c.max, c.min + 1)))
-                    .disabled(model.isAuto(c.spec.autoOf))
+                    .controlSize(.small)
             }
+            .disabled(model.isAuto(c.spec.autoOf))
         }
+    }
+    private var label: some View { Label(c.id, systemImage: c.spec.symbol) }
+    private func switchRow(_ on: Binding<Bool>) -> some View { SwitchRow(isOn: on) { label } }
+}
+
+// Label on the left, switch on the right, like System Settings.
+struct SwitchRow<L: View>: View {
+    @Binding var isOn: Bool
+    @ViewBuilder var label: L
+    var body: some View {
+        HStack { label; Spacer(); Toggle("", isOn: $isOn).labelsHidden().toggleStyle(.switch).controlSize(.small) }
+    }
+}
+
+struct Card<Content: View>: View {
+    @ViewBuilder var content: Content
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) { content }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.fill.quaternary, in: .rect(cornerRadius: 14))
     }
 }
 
@@ -275,45 +306,84 @@ struct Preview: NSViewRepresentable {
 }
 
 struct Panel: View {
-    @ObservedObject var model: Model
+    let model: Model
+    @Binding var showIcon: Bool
+    @State private var showAdvanced = false
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Circle().fill(model.connected ? .green : .red).frame(width: 8, height: 8)
-                Text(model.connected ? "Opal C1" : "Opal C1 not connected").font(.headline)
-                Spacer()
-                Button("↻") { model.refresh() }.buttonStyle(.borderless).help("Re-read controls")
-            }
+        VStack(spacing: 12) {
+            header
             if model.connected {
-                Preview().frame(width: 272, height: 153)  // 16:9; NSViewRepresentable has no intrinsic size
-.clipShape(RoundedRectangle(cornerRadius: 8))
+                Preview()
+                    .frame(width: 308, height: 173)  // 16:9 of the 340pt panel minus padding; NSViewRepresentable has no intrinsic size
+                    .clipShape(.rect(cornerRadius: 14))
+                Card { ForEach(model.controls.filter { !$0.spec.advanced }) { ControlRow(c: $0, model: model) } }
+                Card {
+                    DisclosureGroup(isExpanded: $showAdvanced.animation(.snappy)) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(model.controls.filter { $0.spec.advanced }) { ControlRow(c: $0, model: model) }
+                        }.padding(.top, 8)
+                    } label: { Label("Advanced", systemImage: "slider.horizontal.3") }
+                }
+            } else {
+                ContentUnavailableView("Opal C1 not connected", systemImage: "web.camera",
+                                       description: Text("Plug the camera in. Settings are re-applied automatically."))
+                    .frame(height: 180)
             }
-            ForEach(model.controls.filter { !$0.spec.advanced }) { ControlRow(c: $0, model: model) }
-            DisclosureGroup("Advanced") {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(model.controls.filter { $0.spec.advanced }) { ControlRow(c: $0, model: model) }
-                }.padding(.top, 6)
-            }
-            Divider()
-            Toggle("Launch at login", isOn: Binding(
-                get: { SMAppService.mainApp.status == .enabled },
-                set: { on in _ = try? on ? SMAppService.mainApp.register() : SMAppService.mainApp.unregister(); model.objectWillChange.send() }))
-            HStack {
-                Button("Defaults") { model.resetAll() }.disabled(!model.connected)
-                Button("Log") { NSWorkspace.shared.open(USBLogger.url) }
-                Spacer()
-                Button("Quit") { NSApp.terminate(nil) }
-            }
-            Text("Firmware \(model.firmware) · Bootloader \(model.bootloader)")
-                .font(.caption).foregroundStyle(.secondary)
+            Card { SwitchRow(isOn: $launchAtLogin) { Label("Launch at login", systemImage: "power.circle") } }
+                .onChange(of: launchAtLogin) { _, on in
+                    _ = try? on ? SMAppService.mainApp.register() : SMAppService.mainApp.unregister()
+                }
+            footer
         }
-        .padding(14).frame(width: 300)
+        .padding(16)
+        .frame(width: 340)
         .onAppear { model.refresh() }
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "web.camera.fill")
+                .font(.title2).foregroundStyle(model.connected ? Color.accentColor : .secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Opal C1").font(.headline)
+                Text(model.connected ? "Connected" : "Disconnected")
+                    .font(.caption).foregroundStyle(model.connected ? .green : .secondary)
+            }
+            Spacer()
+            Button("Refresh", systemImage: "arrow.clockwise") { model.refresh() }
+                .labelStyle(.iconOnly).buttonStyle(.glass).help("Re-read camera controls")
+        }
+    }
+
+    private var footer: some View {
+        VStack(spacing: 8) {
+            GlassEffectContainer {
+                HStack {
+                    Button("Defaults", systemImage: "arrow.uturn.backward") { withAnimation { model.resetAll() } }
+                        .disabled(!model.connected).help("Reset every control to the camera's default")
+                    Button("Log", systemImage: "doc.text.magnifyingglass") { NSWorkspace.shared.open(USBLogger.url) }
+                        .help("Open the connection log")
+                    Spacer()
+                    Button("Hide icon", systemImage: "eye.slash") { showIcon = false }
+                        .help("Keeps running in the background. Open OpalMini again to bring the icon back.")
+                    Button("Quit", systemImage: "power") { NSApp.terminate(nil) }
+                        .help("Quit OpalMini")
+                }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.glass)
+            }
+            Text("Firmware \(model.firmware) · Bootloader \(model.bootloader) · v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev")")
+                .font(.caption2).foregroundStyle(.tertiary)
+        }
     }
 }
 
 @main struct OpalMini: App {
-    // Created eagerly: a @StateObject inside MenuBarExtra only initializes when the menu is first opened,
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+    @AppStorage("showIcon") private var showIcon = true
+    // Created eagerly: state inside MenuBarExtra only initializes when the menu is first opened,
     // which would delay settings re-apply and USB logging until then.
     private let model: Model
     init() {
@@ -322,6 +392,17 @@ struct Panel: View {
         model = Model()
     }
     var body: some Scene {
-        MenuBarExtra("Opal", systemImage: "web.camera") { Panel(model: model) }.menuBarExtraStyle(.window)
+        MenuBarExtra("OpalMini", systemImage: "web.camera", isInserted: $showIcon) {
+            Panel(model: model, showIcon: $showIcon)
+        }
+        .menuBarExtraStyle(.window)
+    }
+}
+
+// Launching the app again while it runs (Spotlight, Finder) brings the hidden icon back.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        UserDefaults.standard.set(true, forKey: "showIcon")
+        return false
     }
 }

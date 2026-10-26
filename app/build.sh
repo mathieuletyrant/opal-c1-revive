@@ -1,22 +1,22 @@
 #!/bin/sh
-# Builds OpalMini.app next to this script. Usage: ./build.sh && open OpalMini.app
+# Builds, signs and installs /Applications/OpalMini.app.
+# Signs with your "Apple Development" (or Developer ID) certificate so macOS keeps camera/menu-bar
+# permissions across rebuilds; falls back to ad-hoc if none is installed. Override with SIGN_ID=...
 set -e
+[ -d /Applications/Xcode.app ] && export DEVELOPER_DIR=${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}  # macOS 27 SDK + SwiftUI macros
 cd "$(dirname "$0")"
 APP=OpalMini.app
-rm -rf "$APP" && mkdir -p "$APP/Contents/MacOS"
-swiftc -O -parse-as-library OpalMini.swift -o "$APP/Contents/MacOS/OpalMini"
-cat > "$APP/Contents/Info.plist" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>CFBundleIdentifier</key><string>local.opalmini</string>
-<key>CFBundleName</key><string>OpalMini</string>
-<key>CFBundleExecutable</key><string>OpalMini</string>
-<key>CFBundlePackageType</key><string>APPL</string>
-<key>LSMinimumSystemVersion</key><string>13.0</string>
-<key>LSUIElement</key><true/>
-<key>NSCameraUsageDescription</key><string>Live preview of the Opal C1.</string>
-</dict></plist>
-EOF
-codesign -s - --force "$APP"
-rm -rf "/Applications/$APP" && cp -R "$APP" /Applications/ && echo "installed /Applications/$APP"
+SIGN_ID=${SIGN_ID:-$(security find-identity -v -p codesigning | grep -m1 -oE '"(Developer ID Application|Apple Development): [^"]+"' | tr -d '"')}
+
+[ -f AppIcon.icns ] || swift make_icon.swift
+rm -rf "$APP" && mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+swiftc -O -parse-as-library -target "$(uname -m)-apple-macos27.0" OpalMini.swift -o "$APP/Contents/MacOS/OpalMini"
+sed "s/BUILD/$(git rev-list --count HEAD 2>/dev/null || echo 1)/" Info.plist > "$APP/Contents/Info.plist"
+cp AppIcon.icns "$APP/Contents/Resources/"
+codesign --force --options runtime --timestamp=none --entitlements OpalMini.entitlements -s "${SIGN_ID:--}" "$APP"
+codesign --verify --strict "$APP"
+echo "signed with: ${SIGN_ID:-ad-hoc}"
+
+pkill -x OpalMini 2>/dev/null || true
+rm -rf "/Applications/$APP" && cp -R "$APP" /Applications/
+echo "installed /Applications/$APP"

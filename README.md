@@ -1,8 +1,11 @@
-# opal-c1-revive
+<p align="center"><img src="docs/icon.png" width="128" alt="OpalMini icon"></p>
 
-Keep the **Opal C1** webcam alive after Opal shut down.
+<h1 align="center">opal-c1-revive</h1>
 
+<p align="center">
+Keep the <b>Opal C1</b> webcam alive after Opal shut down.<br>
 A small macOS menu-bar app to control the camera, the tools to back up and update its flash, and notes on how it works inside.
+</p>
 
 <p align="center"><code>📷  Opal C1 · Firmware 4.10 · Bootloader 0.0.29</code></p>
 
@@ -48,22 +51,22 @@ Full findings are in [NOTES.md](NOTES.md).
 
 ## OpalMini: the app
 
-A single-file SwiftUI menu-bar app. It uses standard UVC requests through IOKit, needs no root and has no dependencies.
+A single-file SwiftUI menu-bar app with the macOS 27 Liquid Glass look. It uses standard UVC requests through IOKit, needs no root and has no dependencies.
 
 - Live preview, running only while the menu is open
 - Brightness, contrast, saturation, sharpness, anti-flicker (50/60 Hz) and autofocus, plus an **Advanced** section for exposure, gain, focus, white balance, hue and backlight
 - Remembers your settings and re-applies them whenever the camera reconnects (the camera forgets them on power loss)
-- Launch at login
+- Launch at login, and a **Hide icon** button: the app keeps working in the background, and opening it again brings the icon back
 - Logs every attach/detach of the camera to `~/Library/Logs/OpalMini.log`, to help diagnose dropouts
 - Shows firmware and bootloader versions
 
 ```sh
-app/build.sh                      # builds and installs /Applications/OpalMini.app
+app/build.sh                      # builds, signs and installs /Applications/OpalMini.app
 open /Applications/OpalMini.app
 /Applications/OpalMini.app/Contents/MacOS/OpalMini --selftest   # hardware check
 ```
 
-Requires macOS 13+ and the Xcode command-line tools.
+Requires macOS 27+ and Xcode 27. `build.sh` signs with your Apple Development or Developer ID certificate when one is installed, so macOS keeps the camera and menu-bar permissions across rebuilds. Without a certificate it falls back to ad-hoc signing (`SIGN_ID=...` overrides). `app/make_icon.swift` regenerates the icon.
 
 ## Flash tools
 
