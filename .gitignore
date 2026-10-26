@@ -1,0 +1,11 @@
+# Flash dumps and anything derived from them contain proprietary Opal/Luxonis firmware
+# and per-device data: never commit them.
+backup/
+fw/out/
+*.bin
+*.blob
+*.mvcmd
+
+app/OpalMini.app/
+__pycache__/
+.DS_Store
